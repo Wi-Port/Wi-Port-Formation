@@ -230,10 +230,17 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:26px 0 36px}
   const SUPABASE_ANON = "sb_publishable_hpkv1RTNO6RQ69pSbU9X5g_heLvbBNM";
   // ========================
 
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  const TABLE = 'wiport_inscriptions';
   const $ = (id) => document.getElementById(id);
   let rows = [];
   let curFilter = '';
+  let sb = null;
+
+  try {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  } catch (e) {
+    console.error("Supabase non configuré :", e);
+  }
 
   const STATUTS = { en_attente:"⏳ En attente", contacte:"📞 Contacté", confirme:"✅ Confirmé", annule:"❌ Annulé" };
   const COLORS  = ['#1d4fd8','#e11d2e','#19a64a','#f08a00','#7c3aed','#0891b2','#be185d'];
@@ -263,17 +270,30 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:26px 0 36px}
     return COLORS[h % COLORS.length];
   }
 
+  function showLoginError(msg){
+    const e = $('loginErr');
+    e.textContent = msg;
+    e.style.display = 'block';
+  }
+
   /* ---------- Authentification ---------- */
   async function init(){
+    if (!sb) return;
     const { data } = await sb.auth.getSession();
-    if (data.session) await enter(data.session.user);
+    if (data && data.session) await enter(data.session.user);
   }
 
   async function enter(user){
     const { data: ok, error } = await sb.rpc('wiport_is_admin');
-    if (error || !ok) {
+    if (error) {
+      console.error(error);
       await sb.auth.signOut();
-      showLoginError("Ce compte n'a pas les droits d'administrateur.");
+      showLoginError("Erreur : " + error.message);
+      return;
+    }
+    if (!ok) {
+      await sb.auth.signOut();
+      showLoginError("Ce compte n'a pas les droits d'administrateur. Vérifiez qu'il est bien dans la table wiport_admins.");
       return;
     }
     $('adminEmail').textContent = user.email;
@@ -281,12 +301,6 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:26px 0 36px}
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');
     loadData();
-  }
-
-  function showLoginError(msg){
-    const e = $('loginErr');
-    e.textContent = msg;
-    e.style.display = 'block';
   }
 
   $('eye').addEventListener('click', () => {
@@ -297,6 +311,9 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:26px 0 36px}
   $('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     $('loginErr').style.display = 'none';
+
+    if (!sb) return showLoginError("Le site n'est pas connecté à Supabase. Vérifiez l'URL et la clé en haut du script.");
+
     $('loginBtn').disabled = true;
     $('loginBtn').textContent = 'Connexion…';
 
@@ -307,7 +324,11 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:26px 0 36px}
 
     $('loginBtn').disabled = false;
     $('loginBtn').textContent = 'Se connecter';
-    if (error) return showLoginError("Email ou mot de passe incorrect.");
+
+    if (error) {
+      console.error(error);
+      return showLoginError("Email ou mot de passe incorrect.");
+    }
     await enter(data.user);
   });
 
@@ -325,13 +346,14 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:26px 0 36px}
 
   async function loadData(){
     skeleton();
-    const { data, error } = await sb.from('wiport_inscriptions').select('*').order('created_at', { ascending: false });
+    const { data, error } = await sb.from(TABLE).select('*').order('created_at', { ascending: false });
     if (error) {
+      console.error(error);
       toast("Erreur de chargement : " + error.message, true);
       $('tbody').innerHTML = '';
       return;
     }
-    rows = data;
+    rows = data || [];
     render();
   }
 
@@ -387,7 +409,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:26px 0 36px}
   $('tbody').addEventListener('change', async (e) => {
     if (!e.target.matches('select[data-id]')) return;
     const id = e.target.dataset.id, statut = e.target.value;
-    const { error } = await sb.from('inscriptions').update({ statut }).eq('id', id);
+    const { error } = await sb.from(TABLE).update({ statut }).eq('id', id);
     if (error) { toast("Erreur : " + error.message, true); return loadData(); }
     const r = rows.find(x => x.id === id);
     if (r) r.statut = statut;
@@ -400,7 +422,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:26px 0 36px}
     if (!b) return;
     const id = b.dataset.del;
     if (!confirm("Supprimer définitivement cette inscription ?")) return;
-    const { error } = await sb.from('inscriptions').delete().eq('id', id);
+    const { error } = await sb.from(TABLE).delete().eq('id', id);
     if (error) return toast("Erreur : " + error.message, true);
     rows = rows.filter(r => r.id !== id);
     render();
