@@ -423,8 +423,8 @@ footer .copy{margin-top:18px;font-size:.82rem;opacity:.7}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // ====== À MODIFIER ======
-  const SUPABASE_URL  = "VOTRE_URL_SUPABASE";
-  const SUPABASE_ANON = "VOTRE_CLE_ANON";
+  const SUPABASE_URL  = "https://idvdperqrokcxogroebo.supabase.co";
+  const SUPABASE_ANON = "sb_publishable_hpkv1RTNO6RQ69pSbU9X5g_heLvbBNM";
   // ========================
 
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -481,7 +481,7 @@ footer .copy{margin-top:18px;font-size:.82rem;opacity:.7}
 
     btn.disabled = true;
     btn.textContent = "Envoi en cours…";
-    const { error } = await sb.from('inscriptions').insert(data);
+    const { error } = await sb.from('wiport_inscriptions').insert(data);
 
     if (error) {
       console.error(error);
